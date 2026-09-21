@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ayurvidya · Sanskrit Shloka Analysis RAG System</title>
+    <meta name="description" content="Computational philology and 7-stage RAG analysis for Sushruta Samhita, Nidana Sthana, Chapter 1 (Vatavyadhi Nidana).">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Tiro+Devanagari+Sanskrit:ital@0;1&display=swap" rel="stylesheet">
+    
+    <!-- Custom Vanilla Stylesheet -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- Top Navigation Header -->
+    <header class="app-header" id="appHeader">
+        <div class="header-container">
+            <div class="header-brand">
+                <span class="brand-icon">🌿</span>
+                <div class="brand-titles">
+                    <h1 class="brand-title">Ayurvidya · Shloka Analysis</h1>
+                    <span class="brand-subtitle">Suśruta Saṃhitā · Nidāna Sthāna · Adhyāya 1 (Vātavyādhi)</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button class="btn-search-trigger" id="btnOpenSearch" title="Search ChromaDB vector store">
+                    <span class="search-icon">🔍</span>
+                    <span class="search-label">Semantic Search</span>
+                    <kbd class="kbd-shortcut">/</kbd>
+                </button>
+                <div class="status-indicator" id="systemStatusBadge" title="Vector Database status">
+                    <span class="status-dot"></span>
+                    <span class="status-label" id="statusLabel">Connecting...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div class="app-layout">
+        <!-- Left Sidebar: Shloka Navigator -->
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-section-header">
+                <span class="sidebar-kicker">Corpus Selection</span>
+                <h2 class="sidebar-title">Adhyāya 1 Verses</h2>
+            </div>
+
+            <div class="shloka-picker-container">
+                <label for="shlokaSelect" class="form-label">Active Śloka:</label>
+                <select id="shlokaSelect" class="shloka-select-dropdown" aria-label="Select Shloka"></select>
+            </div>
+
+            <div class="shloka-cards-list" id="shlokaCardsList" role="listbox">
+                <!-- Dynamically populated verse cards -->
+            </div>
+
+            <!-- Controls & Metadata Widget -->
+            <div class="sidebar-widget">
+                <div class="widget-header">Pipeline Controls</div>
+                <div class="widget-controls">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="chkForceRefresh">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Bypass SQLite Cache</span>
+                    </label>
+                    <button class="btn-secondary" id="btnClearCache" title="Clear cached steps for active shloka">
+                        Clear Cache for Śloka
+                    </button>
+                </div>
+
+                <div class="sys-provenance-box" id="sysProvenanceBox">
+                    <div class="prov-row"><span>Vector DB:</span> <strong id="provCollection">ChromaDB</strong></div>
+                    <div class="prov-row"><span>Chunks:</span> <strong id="provChunkCount">43 passages</strong></div>
+                    <div class="prov-row"><span>LLM Provider:</span> <strong id="provLLM">Gemini (gemini-2.5-flash)</strong></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Main: Reading & Analysis Workspace -->
+        <main class="app-main" id="appMain">
+            <!-- Shloka Reading Card -->
+            <section class="shloka-hero-card" id="shlokaHeroCard">
+                <div class="shloka-meta-top">
+                    <div class="meta-badges">
+                        <span class="badge badge-gold" id="badgeChapter">Chapter 1</span>
+                        <span class="badge badge-primary" id="badgeVerse">Śloka 1</span>
+                        <span class="badge badge-subtle" id="badgeSource">Sushruta Samhita</span>
+                        <span class="badge badge-cache" id="badgeCacheStatus">Cached</span>
+                    </div>
+                    <div class="shloka-pages-citation" id="shlokaPagesCitation">Pages: 1–3</div>
+                </div>
+
+                <div class="shloka-sanskrit-container">
+                    <div class="shloka-devanagari-text" id="shlokaDevanagari">
+                        <!-- Devanagari verse text -->
+                    </div>
+                    <div class="shloka-transliteration-text" id="shlokaTranslit">
+                        <!-- IAST Roman transliteration -->
+                    </div>
+                </div>
+
+                <div class="shloka-meta-bottom">
+                    <span class="topic-label">Subject:</span>
+                    <span class="topic-value" id="shlokaEnglishTopic">Vātavyādhi Nidāna</span>
+                </div>
+            </section>
+
+            <!-- Execution Action Banner -->
+            <div class="action-banner">
+                <div class="action-banner-left">
+                    <button class="btn-primary-action" id="btnRunAnalysis">
+                        <span class="btn-icon">⚡</span>
+                        <span class="btn-text">Run 7-Step Analysis</span>
+                    </button>
+                </div>
+                <div class="execution-meta-chips" id="executionMetaChips">
+                    <span class="meta-chip"><span class="chip-label">Śloka:</span> <strong id="chipShlokaNum">—</strong></span>
+                    <span class="meta-chip"><span class="chip-label">Time:</span> <strong id="execTimeValue">—</strong></span>
+                    <span class="meta-chip"><span class="chip-label">Provider:</span> <strong id="chipLLMVal">Gemini 2.5 Flash</strong></span>
+                    <span class="meta-chip"><span class="chip-label">Status:</span> <strong id="chipProvVal">Not Analyzed</strong></span>
+                </div>
+            </div>
+
+            <!-- Analysis Progress Bar (hidden by default) -->
+            <div class="pipeline-progress-container" id="progressContainer" style="display: none;">
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-status-text" id="progressStatusText">Initializing analysis...</div>
+            </div>
+
+            <!-- Seven Stages Navigation Tabs -->
+            <section class="analysis-tabs-section">
+                <div class="tabs-header-bar">
+                    <nav class="tabs-nav-bar" role="tablist" id="tabsNavBar">
+                        <button class="tab-button active" data-step="1" id="tabBtn1" role="tab">1. संप्रदानम्</button>
+                        <button class="tab-button" data-step="2" id="tabBtn2" role="tab">2. पदविभागः</button>
+                        <button class="tab-button" data-step="3" id="tabBtn3" role="tab">3. अन्वयः</button>
+                        <button class="tab-button" data-step="4" id="tabBtn4" role="tab">4. अन्वयार्थः</button>
+                        <button class="tab-button" data-step="5" id="tabBtn5" role="tab">5. भावार्थः</button>
+                        <button class="tab-button" data-step="6" id="tabBtn6" role="tab">6. पदकृत्यम्</button>
+                        <button class="tab-button" data-step="7" id="tabBtn7" role="tab">7. ध्वनितार्थः</button>
+                    </nav>
+                    <div class="view-mode-controls">
+                        <button type="button" class="btn-view-toggle active" id="btnViewTabs" onclick="window.setViewMode && window.setViewMode('tabs')" title="Single step tabbed view">📑 Single Step</button>
+                        <button type="button" class="btn-view-toggle" id="btnViewAccordion" onclick="window.setViewMode && window.setViewMode('accordion')" title="All steps collapsible view">📜 All 7 Steps</button>
+                    </div>
+                </div>
+
+                <!-- Active Step Content Panel -->
+                <div class="tab-content-panel" id="tabContentPanel">
+                    <div class="step-header">
+                        <div class="step-header-titles">
+                            <span class="step-number-tag" id="stepNumberTag">Step 01 / 07</span>
+                            <h3 class="step-name-sanskrit" id="stepNameSanskrit">संप्रदानम्</h3>
+                            <h4 class="step-name-english" id="stepNameEnglish">Sampradaanam (Metrical Chanting Division)</h4>
+                        </div>
+                        <p class="step-description" id="stepDescription">
+                            Splitting the shloka into metrical padas and progressive chanting units.
+                        </p>
+                    </div>
+
+                    <!-- Main Step Output Area -->
+                    <div class="step-output-container" id="stepOutputContainer">
+                        <div class="empty-step-notice" id="emptyStepNotice">
+                            <div class="notice-icon">📜</div>
+                            <h4>Analysis Not Yet Run</h4>
+                            <p>Click <strong>"Run 7-Step Analysis"</strong> above to generate all seven analytical stages using RAG.</p>
+                        </div>
+                        <div class="step-text-output" id="stepTextOutput" style="display: none;"></div>
+                    </div>
+
+                    <!-- Retractable Retrieved Context Expander -->
+                    <details class="retrieved-context-expander" id="contextExpander" open>
+                        <summary class="context-expander-summary">
+                            <span class="summary-left">
+                                <span class="summary-icon">🔍</span>
+                                <span class="summary-title">RAG Context & Retrieved Sources</span>
+                            </span>
+                            <span class="context-chunk-badge" id="contextCountBadge">0 passages</span>
+                        </summary>
+                        <div class="context-cards-container" id="contextCardsContainer">
+                            <div class="no-context-msg">No external passages retrieved yet for this step.</div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- All-Steps Accordion Container (Accordion View) -->
+                <div class="accordion-container" id="accordionContainer" style="display: none;">
+                    <div class="accordion-toolbar">
+                        <span class="accordion-hint">Complete 7-Step Philological Breakdown:</span>
+                        <div class="accordion-btn-group">
+                            <button type="button" class="btn-subtle" id="btnExpandAll" onclick="window.expandAllAccordion && window.expandAllAccordion()">Expand All</button>
+                            <button type="button" class="btn-subtle" id="btnCollapseAll" onclick="window.collapseAllAccordion && window.collapseAllAccordion()">Collapse All</button>
+                        </div>
+                    </div>
+                    <div class="accordion-list" id="accordionList">
+                        <!-- Dynamically populated 7 accordion items -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Grounded RAG Chatbot Section -->
+            <section class="chatbot-section" id="chatbotSection">
+                <div class="chatbot-header">
+                    <div class="chatbot-header-titles">
+                        <span class="chat-icon">💬</span>
+                        <div>
+                            <h3 class="chat-title" id="chatTitle">Shloka Q&A Tutor (Grounded Chatbot)</h3>
+                            <p class="chat-subtitle" id="chatSubtitle">Grounded in the active shloka. Answers are strictly derived from Sushruta Samhita context.</p>
+                        </div>
+                    </div>
+                    <div class="chat-scope-badge" id="chatScopeBadge">Active: Śloka 1</div>
+                </div>
+
+                <div class="chat-messages-container" id="chatMessagesContainer">
+                    <div class="chat-message chat-assistant">
+                        <div class="chat-avatar">🌿</div>
+                        <div class="chat-body">
+                            <p id="chatWelcomeMsg">Namaste! I am your Sushruta Samhita study assistant. Ask me anything about the currently selected shloka, its grammar, clinical indications, or philosophy.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <form class="chat-input-form" id="chatInputForm">
+                    <input type="text" id="chatInputText" class="chat-input-field" placeholder="Ask a question about the active shloka..." autocomplete="off" required>
+                    <button type="submit" class="btn-chat-send" id="btnChatSend" title="Send query">
+                        <span>Send</span>
+                        <span class="send-arrow">→</span>
+                    </button>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <!-- Semantic Vector Search Modal -->
+    <div class="modal-overlay" id="searchModal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-search-input-wrap">
+                    <span class="search-modal-icon">🔍</span>
+                    <input type="text" id="modalSearchInput" class="modal-search-input" placeholder="Search entire Sushruta Samhita Chapter 1 (Sanskrit or English)..." autofocus>
+                </div>
+                <button class="modal-close-btn" id="btnCloseSearch" title="Close modal">✕</button>
+            </div>
+            <div class="modal-results-list" id="modalSearchResults">
+                <div class="search-placeholder-msg">Type a query (e.g. <em>"प्राणो नाम देहधृक्"</em>, <em>"Samana Vayu digestion"</em>, or <em>"Padavibhaga rules"</em>) and press Enter.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script with cache buster -->
+    <script src="/static/app.js?v=2.7.0"></script>
+</body>
+</html>
