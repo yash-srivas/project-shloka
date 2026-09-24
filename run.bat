@@ -1,4 +1,14 @@
 @echo off
+setlocal
+
+REM Auto-detect project virtual environment (.venv)
+set "PYTHON_EXE=python"
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PYTHON_EXE=%~dp0.venv\Scripts\python.exe"
+) else if exist ".venv\Scripts\python.exe" (
+    set "PYTHON_EXE=.venv\Scripts\python.exe"
+)
+
 echo ========================================================
 echo Sanskrit Shloka Analysis RAG System - Sushruta Samhita
 echo ========================================================
@@ -36,7 +46,7 @@ goto menu
 :ingest
 echo.
 echo Running Ingestion...
-python scripts/ingest.py
+"%PYTHON_EXE%" scripts/ingest.py
 pause
 goto menu
 
@@ -44,9 +54,9 @@ goto menu
 echo.
 set /p q="Enter search query (press Enter for default): "
 if "%q%"=="" (
-    python scripts/test_retrieval.py
+    "%PYTHON_EXE%" scripts/test_retrieval.py
 ) else (
-    python scripts/test_retrieval.py -q "%q%"
+    "%PYTHON_EXE%" scripts/test_retrieval.py -q "%q%"
 )
 pause
 goto menu
@@ -55,28 +65,28 @@ goto menu
 echo.
 set /p s="Enter shloka number (1, 3, 5, 9, 11, 12, 13, 14, 16): "
 if "%s%"=="" set s=1
-python scripts/run_pipeline.py --shloka %s%
+"%PYTHON_EXE%" scripts/run_pipeline.py --shloka %s%
 pause
 goto menu
 
 :webapp
 echo.
 echo Launching FastAPI Web App at http://127.0.0.1:8000...
-python -m uvicorn src.server:app --host 127.0.0.1 --port 8000 --reload
+"%PYTHON_EXE%" -m uvicorn src.server:app --host 127.0.0.1 --port 8000 --reload
 pause
 goto menu
 
 :streamlit
 echo.
 echo Launching Legacy Streamlit Web App...
-streamlit run app/streamlit_app.py
+"%PYTHON_EXE%" -m streamlit run app/streamlit_app.py
 pause
 goto menu
 
 :test
 echo.
 echo Running Pytest Suite...
-python -m pytest tests/ -v
+"%PYTHON_EXE%" -m pytest tests/ -v
 pause
 goto menu
 
