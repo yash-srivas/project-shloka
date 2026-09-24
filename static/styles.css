@@ -662,6 +662,28 @@ body::before {
     font-size: 1.1rem;
 }
 
+.btn-secondary-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-surface-elevated);
+    color: var(--text-main);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-secondary-action:hover:not(:disabled) {
+    background: var(--bg-surface-hover);
+    border-color: var(--gold-glow);
+    color: var(--gold-primary);
+    transform: translateY(-2px);
+}
+
 .action-banner-left {
     display: flex;
     align-items: center;

@@ -8,16 +8,20 @@ from src.chunker import build_and_save_processed_data
 from src.pipeline import ShlokaPipelineOrchestrator
 from src.cache import ShlokaCache
 
+from src.llm import LLMClient
+
 def test_pipeline_7_steps_execution():
-    """Verify that all 7 steps are executed and produce non-empty outputs."""
+    """Verify that all 7 steps are executed, latency is tracked, and outputs are non-empty."""
     shlokas, _ = build_and_save_processed_data()
     shloka_1 = shlokas[0]
 
-    orchestrator = ShlokaPipelineOrchestrator()
+    mock_llm = LLMClient(provider="mock")
+    orchestrator = ShlokaPipelineOrchestrator(llm_client=mock_llm)
     result = orchestrator.run_analysis(shloka=shloka_1, force_refresh=True)
 
     assert result.shloka_id == shloka_1.id
     assert len(result.steps) == 7, "Pipeline must return exactly 7 step outputs"
+    assert len(result.step_latencies) == 7, "Per-step latencies must be recorded"
 
     # Validate each individual step
     for step_num in range(1, 8):
@@ -26,6 +30,7 @@ def test_pipeline_7_steps_execution():
         assert step_res.output is not None
         assert len(step_res.output.strip()) > 0, f"Step {step_num} output should not be empty"
         assert step_res.step_number == step_num
+        assert step_res.latency_seconds is not None and step_res.latency_seconds >= 0.0
 
 def test_cache_persistence_and_retrieval():
     """Verify that cached step outputs are stored and can be reloaded."""

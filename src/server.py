@@ -19,7 +19,7 @@ if str(project_root) not in sys.path:
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from src.config import (
@@ -218,12 +218,88 @@ def clear_shloka_cache(shloka_id: str):
     orchestrator = get_orchestrator_instance()
     orchestrator.cache.clear_cache(shloka_id=target_id)
     return {"message": f"Cache cleared for shloka '{target_id}'", "shloka_id": target_id}
+ 
+@app.get("/api/shlokas/{shloka_id}/export")
+def export_shloka_analysis(
+    shloka_id: str,
+    format: str = Query(default="markdown", pattern="^(markdown|json)$")
+):
+    """
+    Export the 7-step philological analysis dossier for a shloka.
+    Supported formats: 'markdown' (.md dossier) or 'json' (structured export).
+    """
+    target = find_shloka(shloka_id)
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Shloka with ID '{shloka_id}' not found.")
+
+    orchestrator = get_orchestrator_instance()
+    provider, model, _ = get_active_llm_config()
+    cached_steps = orchestrator.cache.get_all_steps(shloka_id=target.id, model=model)
+
+    if format == "json":
+        data = {
+            "shloka": target.model_dump(),
+            "model": model,
+            "provider": provider,
+            "steps": {str(k): v.model_dump() for k, v in cached_steps.items()}
+        }
+        return JSONResponse(
+            content=data,
+            headers={"Content-Disposition": f"attachment; filename={target.id}_analysis.json"}
+        )
+
+    # Markdown export
+    lines = [
+        f"# Suśruta Saṃhitā · Nidāna Sthāna · Chapter 1: Vātavyādhi Nidāna",
+        f"## Śloka {target.shloka_number_display}: {target.english_title or 'Philological Analysis'}",
+        "",
+        "### Mūla Śloka (Devanāgarī)",
+        f"> {target.text}",
+        ""
+    ]
+    if target.transliteration:
+        lines.extend([
+            "### Transliteration (IAST)",
+            f"> *{target.transliteration}*",
+            ""
+        ])
+
+    lines.extend([
+        "---",
+        "## Ayurvidya 7-Step Philological Analysis (सप्तपदी प्रभाषणम्)",
+        ""
+    ])
+
+    if not cached_steps:
+        lines.append("*Notice: Analysis has not been generated or cached yet for this śloka.*")
+    else:
+        for step_num in range(1, 8):
+            step_meta = STEPS_CONFIG.get(step_num, {})
+            step_name_sa = step_meta.get("name_sa", f"Step {step_num}")
+            step_name_en = step_meta.get("name_en", "")
+            lines.append(f"### {step_num}. {step_name_sa} ({step_name_en})")
+            if step_num in cached_steps:
+                lines.append(cached_steps[step_num].output)
+            else:
+                lines.append("*(Step not computed)*")
+            lines.append("")
+
+    content = "\n".join(lines)
+    return PlainTextResponse(
+        content=content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={target.id}_analysis.md"}
+    )
 
 @app.get("/api/search")
-def semantic_search(q: str = Query(..., min_length=1), top_k: int = Query(default=4, ge=1, le=10)):
-    """Semantic vector search across ChromaDB collection."""
+def semantic_search(
+    q: str = Query(..., min_length=1),
+    top_k: int = Query(default=4, ge=1, le=10),
+    min_similarity: Optional[float] = Query(default=None, ge=0.0, le=1.0)
+):
+    """Semantic vector search across ChromaDB collection with optional similarity threshold."""
     retriever = get_retriever_instance()
-    results = retriever.retrieve(query=q, top_k=top_k)
+    results = retriever.retrieve(query=q, top_k=top_k, min_similarity=min_similarity)
     return [r.model_dump() for r in results]
 
 import re

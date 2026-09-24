@@ -57,6 +57,7 @@ class StepOutput(BaseModel):
     output: str
     retrieved_contexts: List[RetrievalResult] = Field(default_factory=list)
     model: str = "default"
+    latency_seconds: Optional[float] = Field(default=None, description="Execution time for this step in seconds")
 
 class PipelineResult(BaseModel):
     """Aggregated output of all 7 analysis steps for a shloka."""
@@ -65,6 +66,7 @@ class PipelineResult(BaseModel):
     shloka_text: str
     steps: Dict[int, StepOutput] = Field(default_factory=dict)
     execution_time_seconds: float = 0.0
+    step_latencies: Dict[int, float] = Field(default_factory=dict, description="Execution latency breakdown per step")
     cached: bool = False
     timestamp: Optional[str] = None
 

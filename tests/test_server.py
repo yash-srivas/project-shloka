@@ -82,3 +82,19 @@ def test_run_analysis_and_cache_cycle(client):
     del_resp = client.delete("/api/shlokas/1/cache")
     assert del_resp.status_code == 200
     assert "Cache cleared" in del_resp.json()["message"]
+
+def test_export_endpoints(client):
+    # Test Markdown export
+    md_resp = client.get("/api/shlokas/1/export?format=markdown")
+    assert md_resp.status_code == 200
+    assert "text/markdown" in md_resp.headers.get("content-type", "")
+    assert "Suśruta Saṃhitā" in md_resp.text
+
+    # Test JSON export
+    json_resp = client.get("/api/shlokas/1/export?format=json")
+    assert json_resp.status_code == 200
+    data = json_resp.json()
+    assert "shloka" in data
+    assert data["shloka"]["shloka_number"] == 1
+    assert "steps" in data
+

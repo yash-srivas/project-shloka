@@ -41,6 +41,7 @@ class ShlokaPipelineOrchestrator:
         cache: Optional[ShlokaCache] = None
     ):
         self.retriever = retriever or ShlokaRetriever()
+        self._explicit_llm = llm_client is not None
         self.llm_client = llm_client or LLMClient()
         self.prompt_manager = prompt_manager or PromptManager()
         self.cache = cache or ShlokaCache()
@@ -60,13 +61,14 @@ class ShlokaPipelineOrchestrator:
         shloka_num = shloka.shloka_number
         shloka_text = shloka.text
 
-        # Synchronize LLMClient with active environment if it changed
-        from src.config import get_active_llm_config
-        active_provider, active_model, active_key = get_active_llm_config()
-        if (self.llm_client.provider != active_provider or 
-            self.llm_client.model != active_model or 
-            self.llm_client.api_key != active_key):
-            self.llm_client = LLMClient(provider=active_provider, model=active_model, api_key=active_key)
+        # Synchronize LLMClient with active environment only if not explicitly injected
+        if not self._explicit_llm:
+            from src.config import get_active_llm_config
+            active_provider, active_model, active_key = get_active_llm_config()
+            if (self.llm_client.provider != active_provider or 
+                self.llm_client.model != active_model or 
+                self.llm_client.api_key != active_key):
+                self.llm_client = LLMClient(provider=active_provider, model=active_model, api_key=active_key)
 
         if DEBUG_MODE:
             safe_log("\n" + "#"*60)
@@ -103,9 +105,11 @@ class ShlokaPipelineOrchestrator:
 
         steps_result: Dict[int, StepOutput] = dict(cached_steps)
         previous_text_outputs: Dict[int, str] = {k: v.output for k, v in cached_steps.items()}
+        step_latencies: Dict[int, float] = {}
 
         # 2. Iterate through Step 1 to 7 sequentially
         for step_num in range(1, 8):
+            step_start = time.time()
             step_meta = STEPS_CONFIG[step_num]
             step_name_sa = step_meta["name_sa"]
             step_name_en = step_meta["name_en"]
@@ -157,6 +161,8 @@ class ShlokaPipelineOrchestrator:
 
             # LLM Generation
             step_output_text = self.llm_client.generate(prompt=rendered_prompt, system_prompt=sys_instruction)
+            step_duration = round(time.time() - step_start, 2)
+            step_latencies[step_num] = step_duration
 
             # Build step output object
             step_res = StepOutput(
@@ -165,7 +171,8 @@ class ShlokaPipelineOrchestrator:
                 step_name_english=step_name_en,
                 output=step_output_text,
                 retrieved_contexts=retrieved_chunks,
-                model=self.llm_client.model
+                model=self.llm_client.model,
+                latency_seconds=step_duration
             )
 
             # Update working records
@@ -185,7 +192,7 @@ class ShlokaPipelineOrchestrator:
 
         total_time = round(time.time() - start_time, 2)
         if DEBUG_MODE:
-            safe_log(f"\n[Pipeline] Completed 7 steps in {total_time} seconds.")
+            safe_log(f"\n[Pipeline] Completed 7 steps in {total_time} seconds. Latencies: {step_latencies}")
 
         return PipelineResult(
             shloka_id=shloka_id,
@@ -193,5 +200,6 @@ class ShlokaPipelineOrchestrator:
             shloka_text=shloka_text,
             steps=steps_result,
             execution_time_seconds=total_time,
+            step_latencies=step_latencies,
             cached=False
         )

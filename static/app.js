@@ -42,6 +42,7 @@
 
         // Actions & Progress & Meta Chips
         btnRunAnalysis: document.getElementById('btnRunAnalysis'),
+        btnExportAnalysis: document.getElementById('btnExportAnalysis'),
         execTimeValue: document.getElementById('execTimeValue'),
         chipShlokaNum: document.getElementById('chipShlokaNum'),
         chipLLMVal: document.getElementById('chipLLMVal'),
@@ -104,6 +105,11 @@
 
         // Run Analysis action
         elements.btnRunAnalysis.addEventListener('click', handleRunAnalysis);
+
+        // Export Dossier action
+        if (elements.btnExportAnalysis) {
+            elements.btnExportAnalysis.addEventListener('click', handleExportDossier);
+        }
 
         // Clear Cache action
         elements.btnClearCache.addEventListener('click', handleClearCache);
@@ -683,6 +689,11 @@
         } catch (err) {
             console.error('Error clearing cache:', err);
         }
+    }
+
+    function handleExportDossier() {
+        if (!activeShlokaId) return;
+        window.open(`/api/shlokas/${activeShlokaId}/export?format=markdown`, '_blank');
     }
 
     // =========================================================================
