@@ -6,7 +6,7 @@
 [![Framework](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Vector DB](https://img.shields.io/badge/ChromaDB-0.5+-orange.svg)](https://www.trychroma.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-18%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-20%20passed-brightgreen.svg)](tests/)
 
 ---
 
@@ -359,13 +359,15 @@ python -m pytest tests/ -v
    - Validates temperature and system instruction passing.
 3. `tests/test_pipeline.py`:
    - Validates end-to-end execution of all 7 steps.
+   - Measures per-step execution latencies across analytical stages.
    - Verifies that SQLite cache persists and reloads steps accurately.
 4. `tests/test_retrieval.py`:
    - Validates ChromaDB collection document counts and embedding dimensions.
    - Verifies semantic cosine similarity and step-specific routing (grammar vs. commentary).
+   - Validates confidence threshold filtering (`min_similarity`).
 5. `tests/test_server.py`:
-   - Validates FastAPI endpoints (`/api/status`, `/api/shlokas`, `/api/chat`, `/api/search`).
-   - Verifies static index serving and chat grounding.
+   - Validates FastAPI endpoints (`/api/status`, `/api/shlokas`, `/api/chat`, `/api/search`, `/api/shlokas/{id}/export`).
+   - Verifies static index serving, chat grounding, and study dossier exports in Markdown and JSON formats.
 
 ---
 
@@ -380,8 +382,9 @@ The FastAPI server provides clean, documented JSON REST endpoints:
 | `GET` | `/api/shlokas` | Returns the complete catalog of Chapter 1 verses with transliterations and titles |
 | `GET` | `/api/shlokas/{shloka_id}` | Returns verse details and any pre-cached 7-step analysis outputs |
 | `POST` | `/api/shlokas/{shloka_id}/analyze` | Triggers the 7-step pipeline (`?force_refresh=true` bypasses cache) |
+| `GET` | `/api/shlokas/{shloka_id}/export?format={markdown\|json}` | Generates and exports downloadable philological analysis dossiers |
 | `DELETE` | `/api/shlokas/{shloka_id}/cache` | Clears cached steps for the specified verse |
-| `GET` | `/api/search?q={query}&top_k=4` | Performs cosine similarity search across ChromaDB |
+| `GET` | `/api/search?q={query}&top_k=4&min_similarity=0.3` | Performs cosine similarity search across ChromaDB with optional threshold |
 | `POST` | `/api/chat` | Grounded conversational Q&A endpoint for the active verse |
 
 ---
