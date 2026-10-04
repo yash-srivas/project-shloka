@@ -12,7 +12,7 @@
     let activeShlokaId = null;
     let activeStepNumber = 1;
     let currentDetail = null;
-    let currentViewMode = 'tabs'; // 'tabs' or 'accordion'
+    let currentViewMode = 'accordion'; // 'tabs' or 'accordion'
 
     // DOM Elements
     const elements = {
@@ -50,6 +50,13 @@
         progressContainer: document.getElementById('progressContainer'),
         progressBarFill: document.getElementById('progressBarFill'),
         progressStatusText: document.getElementById('progressStatusText'),
+
+        // Final Explanation
+        finalExplanationSection: document.getElementById('finalExplanationSection'),
+        synthesisStatusChip: document.getElementById('synthesisStatusChip'),
+        emptySynthesisNotice: document.getElementById('emptySynthesisNotice'),
+        synthesisTextOutput: document.getElementById('synthesisTextOutput'),
+        detailedAnalysisExpander: document.getElementById('detailedAnalysisExpander'),
 
         // Analysis Tabs & Step Panel
         tabsNavBar: document.getElementById('tabsNavBar'),
@@ -232,6 +239,7 @@
 
             const verseLabel = currentDetail.shloka.shloka_number_display || currentDetail.shloka.shloka_number;
             renderShlokaHero(currentDetail.shloka, currentDetail.is_cached);
+            renderFinalExplanation(currentDetail.final_synthesis);
 
             if (currentDetail.is_cached) {
                 updateAnalysisMetadata(
@@ -266,6 +274,41 @@
     // =========================================================================
     // UI Renderers & View Modes
     // =========================================================================
+
+    function renderFinalExplanation(synthesisData) {
+        if (!elements.finalExplanationSection) return;
+
+        if (synthesisData && synthesisData.content) {
+            if (elements.emptySynthesisNotice) elements.emptySynthesisNotice.style.display = 'none';
+            if (elements.synthesisTextOutput) {
+                elements.synthesisTextOutput.style.display = 'block';
+                elements.synthesisTextOutput.innerHTML = renderStructuredSynthesis(synthesisData.content);
+            }
+            if (elements.synthesisStatusChip) {
+                const status = (synthesisData.status || 'fresh').toLowerCase();
+                if (status === 'cached') {
+                    elements.synthesisStatusChip.textContent = 'Cached Synthesis';
+                    elements.synthesisStatusChip.className = 'status-chip chip-cached';
+                } else if (status === 'fallback') {
+                    elements.synthesisStatusChip.textContent = 'Synthesis Notice';
+                    elements.synthesisStatusChip.className = 'status-chip chip-fallback';
+                } else {
+                    elements.synthesisStatusChip.textContent = 'Fresh Synthesis';
+                    elements.synthesisStatusChip.className = 'status-chip chip-fresh';
+                }
+            }
+        } else {
+            if (elements.emptySynthesisNotice) elements.emptySynthesisNotice.style.display = 'flex';
+            if (elements.synthesisTextOutput) {
+                elements.synthesisTextOutput.style.display = 'none';
+                elements.synthesisTextOutput.innerHTML = '';
+            }
+            if (elements.synthesisStatusChip) {
+                elements.synthesisStatusChip.textContent = 'Not Synthesized';
+                elements.synthesisStatusChip.className = 'status-chip';
+            }
+        }
+    }
 
     function updateAnalysisMetadata(verseNum, execTime, provider, status) {
         if (elements.chipShlokaNum) elements.chipShlokaNum.textContent = verseNum || '—';
@@ -331,16 +374,620 @@
         elements.chatMessagesContainer.scrollTop = elements.chatMessagesContainer.scrollHeight;
     }
 
+    function formatInline(str) {
+        if (!str) return '';
+        let s = escapeHtml(str);
+        s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        s = s.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+        return s;
+    }
+
     function formatMarkdown(text) {
         if (!text) return '';
-        let escaped = escapeHtml(text);
-        escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        escaped = escaped.replace(/^### (.*$)/gim, '<h4 style="color: var(--text-gold); margin: 0.8rem 0 0.4rem;">$1</h4>');
-        escaped = escaped.replace(/^## (.*$)/gim, '<h3 style="color: var(--text-gold); margin: 1rem 0 0.5rem;">$1</h3>');
-        escaped = escaped.replace(/^# (.*$)/gim, '<h2 style="color: var(--text-gold); margin: 1.2rem 0 0.6rem;">$1</h2>');
-        escaped = escaped.replace(/^\s*[-•]\s+(.*$)/gim, '• $1');
-        return escaped;
+
+        // Safe HTML escape first
+        let src = escapeHtml(text);
+        src = src.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+        // Protect code blocks
+        const codeBlocks = [];
+        src = src.replace(/```([a-zA-Z0-9]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+            const id = `___CODE_BLOCK_${codeBlocks.length}___`;
+            codeBlocks.push(`<pre class="md-code-block"><code>${code}</code></pre>`);
+            return id;
+        });
+
+        // Protect inline code
+        const inlineCodes = [];
+        src = src.replace(/`([^`\n]+)`/g, (match, code) => {
+            const id = `___INLINE_CODE_${inlineCodes.length}___`;
+            inlineCodes.push(`<code class="md-inline-code">${code}</code>`);
+            return id;
+        });
+
+        // Helper for inline styles
+        function inlineFmt(s) {
+            return s
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+        }
+
+        // Parse Markdown pipe tables
+        src = src.replace(/(?:^|\n)(\|[^\n]+\|\n\|[\s\-:|]+\|\n(?:\|[^\n]+\|\n?)+)/g, (match) => {
+            const lines = match.trim().split('\n');
+            if (lines.length < 3) return match;
+            const headerCells = lines[0].split('|').slice(1, -1).map(c => c.trim());
+            const bodyLines = lines.slice(2);
+
+            let html = '<div class="table-responsive-wrapper"><table class="md-table"><thead><tr>';
+            headerCells.forEach(cell => {
+                html += `<th>${inlineFmt(cell)}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            bodyLines.forEach(line => {
+                const cells = line.split('|').slice(1, -1).map(c => c.trim());
+                if (cells.length > 0) {
+                    html += '<tr>';
+                    cells.forEach(cell => {
+                        html += `<td>${inlineFmt(cell)}</td>`;
+                    });
+                    html += '</tr>';
+                }
+            });
+            html += '</tbody></table></div>';
+            return '\n' + html + '\n';
+        });
+
+        // Line-by-line block processing
+        const lines = src.split('\n');
+        const out = [];
+        let inUl = false;
+        let inOl = false;
+        let paraBuffer = [];
+
+        function flushPara() {
+            if (paraBuffer.length > 0) {
+                const content = paraBuffer.join('<br>').trim();
+                if (content) {
+                    out.push(`<p class="md-para">${content}</p>`);
+                }
+                paraBuffer = [];
+            }
+        }
+
+        function closeLists() {
+            if (inUl) { out.push('</ul>'); inUl = false; }
+            if (inOl) { out.push('</ol>'); inOl = false; }
+        }
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Passthrough protected blocks
+            if (line.includes('___CODE_BLOCK_') || line.includes('<div class="table-responsive-wrapper">') || line.includes('</table></div>')) {
+                flushPara();
+                closeLists();
+                out.push(line);
+                continue;
+            }
+
+            // Blank line
+            if (!line.trim()) {
+                flushPara();
+                closeLists();
+                continue;
+            }
+
+            // Horizontal rule
+            if (/^(\-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+                flushPara();
+                closeLists();
+                out.push('<hr class="md-divider">');
+                continue;
+            }
+
+            // Headings (# through ######)
+            const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+            if (headingMatch) {
+                flushPara();
+                closeLists();
+                const level = headingMatch[1].length;
+                const headingText = inlineFmt(headingMatch[2]);
+                const tagLevel = Math.min(6, level + 1);
+                out.push(`<h${tagLevel} class="md-heading-${level}">${headingText}</h${tagLevel}>`);
+                continue;
+            }
+
+            // Unordered list item (- item, * item, • item)
+            const ulMatch = line.match(/^(\s*)[-*•]\s+(.*)$/);
+            if (ulMatch) {
+                flushPara();
+                if (inOl) { out.push('</ol>'); inOl = false; }
+                if (!inUl) { out.push('<ul class="md-list">'); inUl = true; }
+                out.push(`<li>${inlineFmt(ulMatch[2])}</li>`);
+                continue;
+            }
+
+            // Ordered list item (1. item)
+            const olMatch = line.match(/^(\s*)\d+[\.\)]\s+(.*)$/);
+            if (olMatch) {
+                flushPara();
+                if (inUl) { out.push('</ul>'); inUl = false; }
+                if (!inOl) { out.push('<ol class="md-list">'); inOl = true; }
+                out.push(`<li>${inlineFmt(olMatch[2])}</li>`);
+                continue;
+            }
+
+            // Blockquote
+            const bqMatch = line.match(/^&gt;\s*(.*)$/);
+            if (bqMatch) {
+                flushPara();
+                closeLists();
+                out.push(`<blockquote class="md-blockquote">${inlineFmt(bqMatch[1])}</blockquote>`);
+                continue;
+            }
+
+            // Regular paragraph line
+            closeLists();
+            paraBuffer.push(inlineFmt(line));
+        }
+
+        flushPara();
+        closeLists();
+
+        let result = out.join('\n');
+
+        // Restore protected blocks
+        codeBlocks.forEach((block, idx) => {
+            result = result.replace(`___CODE_BLOCK_${idx}___`, block);
+        });
+        inlineCodes.forEach((code, idx) => {
+            result = result.replace(`___INLINE_CODE_${idx}___`, code);
+        });
+
+        return result;
+    }
+
+    function renderStructuredSynthesis(rawText) {
+        if (!rawText) return '';
+
+        // Match numbered sections: 1. to 8.
+        const sectionRegex = /(?:^|\n)(?:#{1,6}\s*|\*\*)?([1-8])[\.\)]\s*([^\n]+)/g;
+        const matches = [...rawText.matchAll(sectionRegex)];
+
+        // If not formatted with 1-8 sections, use robust markdown renderer
+        if (matches.length < 3) {
+            return formatMarkdown(rawText);
+        }
+
+        const sections = {};
+        for (let i = 0; i < matches.length; i++) {
+            const m = matches[i];
+            const num = parseInt(m[1], 10);
+            const title = m[2].trim().replace(/[*#]+$/, '');
+            const start = m.index + m[0].length;
+            const end = (i + 1 < matches.length) ? matches[i + 1].index : rawText.length;
+            const body = rawText.slice(start, end).trim();
+            sections[num] = { title, body };
+        }
+
+        let html = '<div class="synthesis-grid">';
+
+        // 8. FINAL CONCISE SUMMARY (Prominent banner at the very top!)
+        if (sections[8] && sections[8].body) {
+            const summaryText = formatInline(sections[8].body.replace(/^[#*\s-]+/, ''));
+            html += `
+                <div class="final-summary-banner">
+                    <div class="summary-banner-icon">🎯</div>
+                    <div class="summary-banner-body">
+                        <div class="summary-banner-title">संक्षिप्त निष्कर्ष · Concluding Takeaway</div>
+                        <div class="summary-banner-text">${summaryText}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 1. ORIGINAL SHLOKA (मूल श्लोक) - Dedicated Verse Card
+        if (sections[1] && sections[1].body) {
+            const rawBody = sections[1].body;
+            const lines = rawBody.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('```'));
+            
+            let stanzasHtml = '';
+            let currentStanzaLines = [];
+
+            lines.forEach((line) => {
+                let norm = line.replace(/\|\|/g, '॥').replace(/(?<![॥|])\|(?![॥|])/g, '।');
+                // Detect verse number at end: e.g. ॥५॥ or ।९। or ||5||
+                const vnumMatch = norm.match(/[॥।]\s*([०-९\d]+)\s*[॥।]$/);
+                if (vnumMatch) {
+                    const vnum = vnumMatch[1];
+                    const cleanVerse = norm.slice(0, vnumMatch.index).trim();
+                    currentStanzaLines.push(`
+                        <div class="sanskrit-verse-line">
+                            <span>${escapeHtml(cleanVerse)}</span>
+                            <span class="verse-num-pill">॥ ${escapeHtml(vnum)} ॥</span>
+                        </div>
+                    `);
+                    stanzasHtml += `<div class="verse-stanza">${currentStanzaLines.join('')}</div>`;
+                    currentStanzaLines = [];
+                } else {
+                    currentStanzaLines.push(`
+                        <div class="sanskrit-verse-line">
+                            <span>${escapeHtml(norm)}</span>
+                        </div>
+                    `);
+                }
+            });
+
+            if (currentStanzaLines.length > 0) {
+                stanzasHtml += `<div class="verse-stanza">${currentStanzaLines.join('')}</div>`;
+            }
+
+            // Insert ornaments between stanzas
+            const stanzasSplit = stanzasHtml.split('</div><div class="verse-stanza">');
+            const ornamentedStanzas = stanzasSplit.join('</div><div class="stanza-ornament">✦ ✦ ✦</div><div class="verse-stanza">');
+
+            html += `
+                <div class="synthesis-card">
+                    <div class="synthesis-card-header">
+                        <div class="header-left">
+                            <span class="card-icon">🕉️</span>
+                            <span class="card-title">मूल श्लोक · Original Sanskrit Verse</span>
+                        </div>
+                        <span class="card-badge">Samhita Text</span>
+                    </div>
+                    <div class="shloka-verse-display">
+                        ${ornamentedStanzas || `<div class="sanskrit-verse-line">${escapeHtml(rawBody)}</div>`}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 4. LITERAL / SENTENCE MEANING (सरलार्थ) - Placed directly below the verse for instant comprehension!
+        if (sections[4] && sections[4].body) {
+            const rawBody = sections[4].body;
+            // Split long sentences/paragraphs (>200 chars)
+            const sentences = rawBody.split(/(?<=[.।!])\s+/);
+            const paras = [];
+            let currPara = [];
+            let currLen = 0;
+
+            sentences.forEach(s => {
+                currPara.push(s);
+                currLen += s.length;
+                if (currLen > 220) {
+                    paras.push(currPara.join(' '));
+                    currPara = [];
+                    currLen = 0;
+                }
+            });
+            if (currPara.length > 0) paras.push(currPara.join(' '));
+
+            const parasHtml = paras.map(p => `<p class="sentence-meaning-para">${formatInline(p)}</p>`).join('');
+
+            html += `
+                <div class="synthesis-card">
+                    <div class="synthesis-card-header">
+                        <div class="header-left">
+                            <span class="card-icon">📜</span>
+                            <span class="card-title">अन्वयार्थ एवं सरलार्थ · Continuous Sentence Meaning</span>
+                        </div>
+                        <span class="card-badge">Translation</span>
+                    </div>
+                    <div class="prose-content">
+                        ${parasHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 2. WORD-BY-WORD MEANING (पदविभाग एवं अन्वयार्थ) - Structured Table
+        if (sections[2] && sections[2].body) {
+            const rawBody = sections[2].body;
+            const lines = rawBody.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            const tableRows = [];
+
+            lines.forEach((line) => {
+                // If it is a pipe table row, parse columns
+                if (line.startsWith('|') && line.endsWith('|')) {
+                    const cells = line.split('|').slice(1, -1).map(c => c.trim());
+                    if (cells.length >= 2 && !cells[0].includes('---')) {
+                        const sk = cells[0];
+                        const mean = cells[1];
+                        const gram = cells[2] || '—';
+                        tableRows.push({ sanskrit: sk, meaning: mean, grammar: gram });
+                    }
+                    return;
+                }
+
+                // If bullet line: e.g. - **तस्य** (सुश्रुतस्य) — His
+                if (line.match(/^[-*•]\s+/)) {
+                    const cleanLine = line.replace(/^[-*•]\s+/, '').trim();
+                    // Split on separator
+                    const parts = cleanLine.split(/\s+[—–]\s+|\s+:\s+|\s+-\s+/);
+                    let left = parts[0] || '';
+                    let right = parts[1] || '';
+
+                    // Extract Sanskrit from **...** or left
+                    const boldMatch = left.match(/\*\*([^*]+)\*\*/);
+                    let sanskrit = boldMatch ? boldMatch[1].trim() : left.replace(/[*_]/g, '').trim();
+
+                    let grammar = '';
+
+                    // Check for grammar in left parentheses
+                    const leftParenMatch = left.match(/\(([^)]+)\)/);
+                    if (leftParenMatch) {
+                        const content = leftParenMatch[1].trim();
+                        if (/[\+लङ्क्त्वाक्विप्णिनिविभक्तिसमासवचनपुरुषकृदन्ततिङन्त]/i.test(content)) {
+                            grammar = content;
+                        } else {
+                            sanskrit += ` (${content})`;
+                        }
+                    }
+
+                    // Check for grammar in right parentheses (e.g. at end of meaning)
+                    const rightParenMatch = right.match(/\(([^)]+)\)$/);
+                    if (rightParenMatch && !grammar) {
+                        const content = rightParenMatch[1].trim();
+                        if (/(?:case|noun|verb|singular|plural|past|present|root|participle|masculine|feminine|neuter)/i.test(content)) {
+                            grammar = content;
+                            right = right.replace(/\s*\([^)]+\)$/, '').trim();
+                        }
+                    }
+
+                    const meaning = right || '—';
+                    tableRows.push({
+                        sanskrit: sanskrit,
+                        meaning: meaning,
+                        grammar: grammar || '—'
+                    });
+                }
+            });
+
+            if (tableRows.length > 0) {
+                let rowsHtml = '';
+                tableRows.forEach((r, idx) => {
+                    const rowClass = (idx % 2 === 0) ? 'row-even' : 'row-odd';
+                    const grammarHtml = (r.grammar && r.grammar !== '—') 
+                        ? `<span class="grammar-pill">${escapeHtml(r.grammar)}</span>` 
+                        : '<span style="color: var(--text-dim);">—</span>';
+                    
+                    rowsHtml += `
+                        <tr class="${rowClass}">
+                            <td class="td-sanskrit">${escapeHtml(r.sanskrit)}</td>
+                            <td class="td-meaning">${formatInline(r.meaning)}</td>
+                            <td class="td-grammar">${grammarHtml}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                    <div class="synthesis-card">
+                        <div class="synthesis-card-header">
+                            <div class="header-left">
+                                <span class="card-icon">📖</span>
+                                <span class="card-title">पदविभाग एवं अन्वयार्थ · Word-by-Word Gloss</span>
+                            </div>
+                            <span class="card-badge">${tableRows.length} Words</span>
+                        </div>
+                        <div class="table-responsive-wrapper">
+                            <table class="word-meaning-table">
+                                <thead>
+                                    <tr>
+                                        <th><span class="th-icon">🔤</span> Sanskrit (पदम्)</th>
+                                        <th><span class="th-icon">📝</span> Meaning (अन्वयार्थ)</th>
+                                        <th><span class="th-icon">🏷️</span> Grammar / Morphology (व्याकरणम्)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="synthesis-card">
+                        <div class="synthesis-card-header">
+                            <div class="header-left">
+                                <span class="card-icon">📖</span>
+                                <span class="card-title">पदविभाग एवं अन्वयार्थ · Word-by-Word Gloss</span>
+                            </div>
+                            <span class="card-badge">Analysis</span>
+                        </div>
+                        <div class="prose-content">
+                            ${formatMarkdown(sections[2].body)}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 3. ANVAYA (व्याकरणात्मक अन्वय)
+        if (sections[3] && sections[3].body) {
+            const rawBody = sections[3].body;
+            // Separate Sanskrit prose from English notes if present
+            const lines = rawBody.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            const sanskritLines = [];
+            const notesLines = [];
+
+            lines.forEach(line => {
+                // If line contains predominant Latin characters without Sanskrit
+                const latinCount = (line.match(/[a-zA-Z]/g) || []).length;
+                if (latinCount > 15 && !line.match(/[क-ह]/)) {
+                    notesLines.push(line);
+                } else {
+                    sanskritLines.push(line);
+                }
+            });
+
+            let formattedSanskrit = escapeHtml(sanskritLines.join(' '));
+            // Highlight supplied words in parentheses
+            formattedSanskrit = formattedSanskrit.replace(/\(([^)]+)\)/g, '<span class="adhythara-word">($1)</span>');
+            // Style dandas
+            formattedSanskrit = formattedSanskrit.replace(/([।॥])/g, '<span class="sanskrit-danda">$1</span>');
+
+            let notesHtml = '';
+            if (notesLines.length > 0) {
+                notesHtml = `
+                    <div class="anvaya-notes-container">
+                        ${notesLines.map(n => `<p class="anvaya-explanation">${formatInline(n)}</p>`).join('')}
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="synthesis-card">
+                    <div class="synthesis-card-header">
+                        <div class="header-left">
+                            <span class="card-icon">🔗</span>
+                            <span class="card-title">व्याकरणात्मक अन्वय · Syntactic Reordering (Anvaya)</span>
+                        </div>
+                        <span class="card-badge">Grammatical Prose</span>
+                    </div>
+                    <div class="anvaya-body">
+                        <div class="anvaya-prose-container">
+                            <div class="anvaya-prose-badge">वाक्य-अन्वयक्रमः (Syntactic Order: Kartā → Karma → Kriyā)</div>
+                            <div class="anvaya-sanskrit-text">${formattedSanskrit}</div>
+                        </div>
+                        ${notesHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 5. BHAVARTHA / OVERALL MEANING (भावार्थ)
+        if (sections[5] && sections[5].body) {
+            const rawBody = sections[5].body;
+            const lines = rawBody.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            let bhavarthaHtml = '';
+            const bulletItems = lines.filter(l => l.match(/^[-*•]\s+/));
+
+            if (bulletItems.length > 0) {
+                bhavarthaHtml = bulletItems.map(item => {
+                    const text = item.replace(/^[-*•]\s+/, '');
+                    return `
+                        <div class="bullet-item">
+                            <span class="bullet-dot">◆</span>
+                            <div>${formatInline(text)}</div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                // Split into smaller readable paragraphs
+                const sentences = rawBody.split(/(?<=[.।!])\s+/);
+                const paras = [];
+                let currPara = [];
+                let currLen = 0;
+                sentences.forEach(s => {
+                    currPara.push(s);
+                    currLen += s.length;
+                    if (currLen > 240) {
+                        paras.push(currPara.join(' '));
+                        currPara = [];
+                        currLen = 0;
+                    }
+                });
+                if (currPara.length > 0) paras.push(currPara.join(' '));
+                bhavarthaHtml = paras.map(p => `<p class="sentence-meaning-para">${formatInline(p)}</p>`).join('');
+            }
+
+            html += `
+                <div class="synthesis-card">
+                    <div class="synthesis-card-header">
+                        <div class="header-left">
+                            <span class="card-icon">💡</span>
+                            <span class="card-title">भावार्थ · Overall Meaning & Clinical Purport</span>
+                        </div>
+                        <span class="card-badge">Central Teaching</span>
+                    </div>
+                    <div class="prose-content">
+                        ${bhavarthaHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 6. AYURVEDIC CONTEXT & SIGNIFICANCE (आयुर्वेदीय संदर्भ एवं महत्व)
+        if (sections[6] && sections[6].body) {
+            const rawBody = sections[6].body;
+            const lines = rawBody.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            let ayurvedaHtml = '';
+            const subblocks = [];
+
+            lines.forEach(line => {
+                // Check for - **Title:** Description or **Title:** Description
+                const match = line.match(/^[-*•]?\s*\*\*([^*]+)\*\*[:\s—–-]\s*(.*)$/);
+                if (match) {
+                    subblocks.push({ title: match[1].trim(), body: match[2].trim() });
+                }
+            });
+
+            if (subblocks.length > 0) {
+                ayurvedaHtml = subblocks.map(b => `
+                    <div class="ayurvedic-subblock">
+                        <div class="subblock-title">${escapeHtml(b.title)}</div>
+                        <div class="subblock-body">${formatInline(b.body)}</div>
+                    </div>
+                `).join('');
+            } else {
+                // Split long paragraphs into readable blocks
+                const paras = rawBody.split(/\n\n+/);
+                ayurvedaHtml = paras.map(p => `
+                    <div class="ayurvedic-subblock">
+                        <div class="subblock-body">${formatInline(p)}</div>
+                    </div>
+                `).join('');
+            }
+
+            html += `
+                <div class="synthesis-card">
+                    <div class="synthesis-card-header">
+                        <div class="header-left">
+                            <span class="card-icon">🌿</span>
+                            <span class="card-title">आयुर्वेदीय संदर्भ एवं महत्व · Ayurvedic Context & Significance</span>
+                        </div>
+                        <span class="card-badge">Clinical Context</span>
+                    </div>
+                    <div class="ayurveda-content">
+                        ${ayurvedaHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 7. DHVANITARTHA & TANTRAYUKTI (ध्वनितार्थ एवं तन्त्रयुक्ति)
+        if (sections[7] && sections[7].body) {
+            let content = formatInline(sections[7].body);
+            // Highlight Tantrayukti mentions
+            content = content.replace(/(उद्देश|निर्देश|अर्थापत्ति|प्रसङ्ग|समुच्चय|विपर्यय|अतिदेश|पदार्थ|संशय|निर्णय|वाक्यशेष|व्याख्यान|हेत्वर्थ)/g, '<span class="tantrayukti-chip">$1</span>');
+
+            // Split into paragraphs if double newline or long
+            const paras = content.split(/\n\n+/);
+            const parasHtml = paras.map(p => `<p class="sentence-meaning-para">${p}</p>`).join('');
+
+            html += `
+                <div class="synthesis-card">
+                    <div class="synthesis-card-header">
+                        <div class="header-left">
+                            <span class="card-icon">🔍</span>
+                            <span class="card-title">ध्वनितार्थ एवं तन्त्रयुक्ति · Deeper Meaning & Tantrayukti</span>
+                        </div>
+                        <span class="card-badge">Hermeneutics</span>
+                    </div>
+                    <div class="dhvanitartha-content">
+                        ${parasHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        html += '</div>'; // close .synthesis-grid
+        return html;
     }
 
     function renderSidebarShlokaList(shlokas) {
@@ -468,7 +1115,7 @@
             const chunks = stepData ? (stepData.retrieved_contexts || stepData.retrieved_chunks || []) : [];
 
             const item = document.createElement('div');
-            item.className = 'accordion-item open';
+            item.className = 'accordion-item';
             item.dataset.step = stepNum;
 
             let chunksHtml = '';
@@ -596,22 +1243,27 @@
 
         const forceRefresh = elements.chkForceRefresh.checked;
         elements.btnRunAnalysis.disabled = true;
-        elements.btnRunAnalysis.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Executing RAG Pipeline...</span>';
+        elements.btnRunAnalysis.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Analyzing & Synthesizing...</span>';
 
-        // Show progress bar
+        // Show progress bar with multi-phase indication
         elements.progressContainer.style.display = 'flex';
         elements.progressBarFill.style.width = '15%';
-        elements.progressStatusText.textContent = 'Step 1/7: Initializing Sanskrit chunk retrieval & analysis...';
+        elements.progressBarFill.style.background = 'var(--gold-gradient)';
+        elements.progressStatusText.textContent = 'Generating 7-step analysis (Step 1/7)...';
 
         let progressTimer = setInterval(() => {
             let currentWidth = parseInt(elements.progressBarFill.style.width, 10) || 15;
-            if (currentWidth < 85) {
-                currentWidth += 12;
+            if (currentWidth < 70) {
+                currentWidth += 10;
                 elements.progressBarFill.style.width = currentWidth + '%';
-                const stepNum = Math.min(7, Math.floor((currentWidth / 90) * 7) + 1);
-                elements.progressStatusText.textContent = `Running Step ${stepNum} of 7 through RAG & LLM...`;
+                const stepNum = Math.min(7, Math.floor((currentWidth / 70) * 7) + 1);
+                elements.progressStatusText.textContent = `Generating 7-step analysis (Step ${stepNum}/7)...`;
+            } else if (currentWidth < 92) {
+                currentWidth += 4;
+                elements.progressBarFill.style.width = currentWidth + '%';
+                elements.progressStatusText.textContent = 'Generating final explanation (अन्तिम-संश्लेषणम्)...';
             }
-        }, 400);
+        }, 350);
 
         try {
             const url = `/api/shlokas/${activeShlokaId}/analyze?force_refresh=${forceRefresh}`;
@@ -626,10 +1278,11 @@
 
             // Progress finish
             elements.progressBarFill.style.width = '100%';
-            elements.progressStatusText.textContent = 'Analysis Complete!';
+            elements.progressStatusText.textContent = 'Final explanation ready!';
 
             // Refresh current shloka detail
             currentDetail.steps = data.steps;
+            currentDetail.final_synthesis = data.final_synthesis;
             currentDetail.is_cached = true;
 
             const verseLabel = currentDetail.shloka.shloka_number_display || currentDetail.shloka.shloka_number;
@@ -652,6 +1305,8 @@
             }
 
             renderShlokaHero(currentDetail.shloka, true);
+            renderFinalExplanation(data.final_synthesis);
+
             if (currentViewMode === 'accordion') {
                 renderAccordion();
             } else {

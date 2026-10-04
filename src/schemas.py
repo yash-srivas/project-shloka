@@ -59,12 +59,21 @@ class StepOutput(BaseModel):
     model: str = "default"
     latency_seconds: Optional[float] = Field(default=None, description="Execution time for this step in seconds")
 
+class FinalSynthesisOutput(BaseModel):
+    """Synthesized final user-facing explanation combining the 7-step analysis."""
+    content: str
+    model: str = "gemini-2.5-flash"
+    status: str = "fresh"
+    latency_seconds: Optional[float] = None
+    retrieved_contexts: List[RetrievalResult] = Field(default_factory=list)
+
 class PipelineResult(BaseModel):
-    """Aggregated output of all 7 analysis steps for a shloka."""
+    """Aggregated output of all 7 analysis steps and final synthesis for a shloka."""
     shloka_id: str
     shloka_number: int
     shloka_text: str
     steps: Dict[int, StepOutput] = Field(default_factory=dict)
+    final_synthesis: Optional[FinalSynthesisOutput] = None
     execution_time_seconds: float = 0.0
     step_latencies: Dict[int, float] = Field(default_factory=dict, description="Execution latency breakdown per step")
     cached: bool = False

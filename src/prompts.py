@@ -62,7 +62,7 @@ class PromptManager:
         self._load_all_templates()
 
     def _load_all_templates(self):
-        """Preload all 7 prompt templates into memory."""
+        """Preload all 7 prompt templates into memory and load the final synthesis template."""
         for step_num, config in STEPS_CONFIG.items():
             prompt_file = self.prompts_dir / config["file"]
             if prompt_file.exists():
@@ -73,6 +73,14 @@ class PromptManager:
                     f"Perform Step {step_num} ({config['name_sa']} - {config['name_en']}) on the shloka:\n"
                     "Shloka: {shloka_text}\nContext: {retrieved_context}\n"
                 )
+
+        synth_file = self.prompts_dir / "final_synthesis.txt"
+        if synth_file.exists():
+            self._synthesis_template = synth_file.read_text(encoding="utf-8")
+        else:
+            self._synthesis_template = (
+                "Provide a final synthesis of the shloka:\n{shloka_text}\nContext:\n{retrieved_context}\n"
+            )
 
     def get_template(self, step_number: int) -> str:
         """Get raw prompt template for a specific step."""
@@ -111,6 +119,46 @@ class PromptManager:
         }
 
         # Safe string formatting
+        rendered = template
+        for key, val in format_args.items():
+            placeholder = "{" + key + "}"
+            if placeholder in rendered:
+                rendered = rendered.replace(placeholder, val)
+
+        return rendered
+
+    def get_synthesis_template(self) -> str:
+        """Get raw prompt template for final synthesis."""
+        synth_file = self.prompts_dir / "final_synthesis.txt"
+        if synth_file.exists():
+            return synth_file.read_text(encoding="utf-8")
+        return getattr(self, "_synthesis_template", "")
+
+    def render_synthesis_prompt(
+        self,
+        shloka_text: str,
+        retrieved_context: str = "No additional context found.",
+        step_outputs: Dict[int, str] = None
+    ) -> str:
+        """
+        Render the final synthesis prompt combining shloka text, retrieved context,
+        and all 7 intermediate step outputs.
+        """
+        step_outputs = step_outputs or {}
+        template = self.get_synthesis_template()
+
+        format_args = {
+            "shloka_text": shloka_text.strip(),
+            "retrieved_context": retrieved_context.strip() if retrieved_context else "No relevant context found in database.",
+            "step1_output": step_outputs.get(1, "Not available"),
+            "step2_output": step_outputs.get(2, "Not available"),
+            "step3_output": step_outputs.get(3, "Not available"),
+            "step4_output": step_outputs.get(4, "Not available"),
+            "step5_output": step_outputs.get(5, "Not available"),
+            "step6_output": step_outputs.get(6, "Not available"),
+            "step7_output": step_outputs.get(7, "Not available"),
+        }
+
         rendered = template
         for key, val in format_args.items():
             placeholder = "{" + key + "}"

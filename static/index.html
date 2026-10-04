@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Tiro+Devanagari+Sanskrit:ital@0;1&display=swap" rel="stylesheet">
     
     <!-- Custom Vanilla Stylesheet -->
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2.9.0">
 </head>
 <body>
     <!-- Top Navigation Header -->
@@ -137,76 +137,109 @@
                 <div class="progress-status-text" id="progressStatusText">Initializing analysis...</div>
             </div>
 
-            <!-- Seven Stages Navigation Tabs -->
-            <section class="analysis-tabs-section">
-                <div class="tabs-header-bar">
-                    <nav class="tabs-nav-bar" role="tablist" id="tabsNavBar">
-                        <button class="tab-button active" data-step="1" id="tabBtn1" role="tab">1. संप्रदानम्</button>
-                        <button class="tab-button" data-step="2" id="tabBtn2" role="tab">2. पदविभागः</button>
-                        <button class="tab-button" data-step="3" id="tabBtn3" role="tab">3. अन्वयः</button>
-                        <button class="tab-button" data-step="4" id="tabBtn4" role="tab">4. अन्वयार्थः</button>
-                        <button class="tab-button" data-step="5" id="tabBtn5" role="tab">5. भावार्थः</button>
-                        <button class="tab-button" data-step="6" id="tabBtn6" role="tab">6. पदकृत्यम्</button>
-                        <button class="tab-button" data-step="7" id="tabBtn7" role="tab">7. ध्वनितार्थः</button>
-                    </nav>
-                    <div class="view-mode-controls">
-                        <button type="button" class="btn-view-toggle active" id="btnViewTabs" onclick="window.setViewMode && window.setViewMode('tabs')" title="Single step tabbed view">📑 Single Step</button>
-                        <button type="button" class="btn-view-toggle" id="btnViewAccordion" onclick="window.setViewMode && window.setViewMode('accordion')" title="All steps collapsible view">📜 All 7 Steps</button>
+            <!-- Final Explanation Section (Primary Synthesized Result) -->
+            <section class="final-explanation-section" id="finalExplanationSection">
+                <div class="final-explanation-header">
+                    <div class="final-explanation-titles">
+                        <span class="final-explanation-badge">✨ Final Explanation</span>
+                        <h2 class="final-explanation-title">अन्तिम-संश्लेषणम् · Synthesized Analysis</h2>
+                    </div>
+                    <div class="final-explanation-status" id="finalSynthesisMetaBadge">
+                        <span class="status-chip" id="synthesisStatusChip">Not Synthesized</span>
                     </div>
                 </div>
 
-                <!-- Active Step Content Panel -->
-                <div class="tab-content-panel" id="tabContentPanel">
-                    <div class="step-header">
-                        <div class="step-header-titles">
-                            <span class="step-number-tag" id="stepNumberTag">Step 01 / 07</span>
-                            <h3 class="step-name-sanskrit" id="stepNameSanskrit">संप्रदानम्</h3>
-                            <h4 class="step-name-english" id="stepNameEnglish">Sampradaanam (Metrical Chanting Division)</h4>
-                        </div>
-                        <p class="step-description" id="stepDescription">
-                            Splitting the shloka into metrical padas and progressive chanting units.
-                        </p>
+                <div class="final-explanation-body" id="finalExplanationBody">
+                    <div class="empty-step-notice" id="emptySynthesisNotice">
+                        <div class="notice-icon">✨</div>
+                        <h4>Final Explanation Not Yet Generated</h4>
+                        <p>Click <strong>"Run 7-Step Analysis"</strong> above to execute the intermediate philological analysis and synthesize the final explanation.</p>
                     </div>
-
-                    <!-- Main Step Output Area -->
-                    <div class="step-output-container" id="stepOutputContainer">
-                        <div class="empty-step-notice" id="emptyStepNotice">
-                            <div class="notice-icon">📜</div>
-                            <h4>Analysis Not Yet Run</h4>
-                            <p>Click <strong>"Run 7-Step Analysis"</strong> above to generate all seven analytical stages using RAG.</p>
-                        </div>
-                        <div class="step-text-output" id="stepTextOutput" style="display: none;"></div>
-                    </div>
-
-                    <!-- Retractable Retrieved Context Expander -->
-                    <details class="retrieved-context-expander" id="contextExpander" open>
-                        <summary class="context-expander-summary">
-                            <span class="summary-left">
-                                <span class="summary-icon">🔍</span>
-                                <span class="summary-title">RAG Context & Retrieved Sources</span>
-                            </span>
-                            <span class="context-chunk-badge" id="contextCountBadge">0 passages</span>
-                        </summary>
-                        <div class="context-cards-container" id="contextCardsContainer">
-                            <div class="no-context-msg">No external passages retrieved yet for this step.</div>
-                        </div>
-                    </details>
-                </div>
-
-                <!-- All-Steps Accordion Container (Accordion View) -->
-                <div class="accordion-container" id="accordionContainer" style="display: none;">
-                    <div class="accordion-toolbar">
-                        <span class="accordion-hint">Complete 7-Step Philological Breakdown:</span>
-                        <div class="accordion-btn-group">
-                            <button type="button" class="btn-subtle" id="btnExpandAll" onclick="window.expandAllAccordion && window.expandAllAccordion()">Expand All</button>
-                            <button type="button" class="btn-subtle" id="btnCollapseAll" onclick="window.collapseAllAccordion && window.collapseAllAccordion()">Collapse All</button>
-                        </div>
-                    </div>
-                    <div class="accordion-list" id="accordionList">
-                        <!-- Dynamically populated 7 accordion items -->
-                    </div>
+                    <div class="synthesis-text-output" id="synthesisTextOutput" style="display: none;"></div>
                 </div>
             </section>
+
+            <!-- Detailed 7-Step Philological Analysis (Collapsible / Expandable) -->
+            <details class="detailed-analysis-expander" id="detailedAnalysisExpander" open>
+                <summary class="detailed-analysis-summary">
+                    <span class="detailed-summary-left">
+                        <span class="detailed-summary-icon">📜</span>
+                        <span class="detailed-summary-title">Detailed Analysis (7 Philological Steps)</span>
+                    </span>
+                    <span class="detailed-summary-kicker">Intermediate Analytical Evidence ▼</span>
+                </summary>
+
+                <!-- Seven Stages Navigation Tabs -->
+                <section class="analysis-tabs-section">
+                    <div class="tabs-header-bar">
+                        <nav class="tabs-nav-bar" role="tablist" id="tabsNavBar" style="display: none;">
+                            <button class="tab-button active" data-step="1" id="tabBtn1" role="tab">1. संप्रदानम्</button>
+                            <button class="tab-button" data-step="2" id="tabBtn2" role="tab">2. पदविभागः</button>
+                            <button class="tab-button" data-step="3" id="tabBtn3" role="tab">3. अन्वयः</button>
+                            <button class="tab-button" data-step="4" id="tabBtn4" role="tab">4. अन्वयार्थः</button>
+                            <button class="tab-button" data-step="5" id="tabBtn5" role="tab">5. भावार्थः</button>
+                            <button class="tab-button" data-step="6" id="tabBtn6" role="tab">6. पदकृत्यम्</button>
+                            <button class="tab-button" data-step="7" id="tabBtn7" role="tab">7. ध्वनितार्थः</button>
+                        </nav>
+                        <div class="view-mode-controls">
+                            <button type="button" class="btn-view-toggle active" id="btnViewAccordion" onclick="window.setViewMode && window.setViewMode('accordion')" title="All steps collapsible view">📜 All 7 Steps</button>
+                            <button type="button" class="btn-view-toggle" id="btnViewTabs" onclick="window.setViewMode && window.setViewMode('tabs')" title="Single step tabbed view">📑 Single Step</button>
+                        </div>
+                    </div>
+
+                    <!-- Active Step Content Panel -->
+                    <div class="tab-content-panel" id="tabContentPanel" style="display: none;">
+                        <div class="step-header">
+                            <div class="step-header-titles">
+                                <span class="step-number-tag" id="stepNumberTag">Step 01 / 07</span>
+                                <h3 class="step-name-sanskrit" id="stepNameSanskrit">संप्रदानम्</h3>
+                                <h4 class="step-name-english" id="stepNameEnglish">Sampradaanam (Metrical Chanting Division)</h4>
+                            </div>
+                            <p class="step-description" id="stepDescription">
+                                Splitting the shloka into metrical padas and progressive chanting units.
+                            </p>
+                        </div>
+
+                        <!-- Main Step Output Area -->
+                        <div class="step-output-container" id="stepOutputContainer">
+                            <div class="empty-step-notice" id="emptyStepNotice">
+                                <div class="notice-icon">📜</div>
+                                <h4>Analysis Not Yet Run</h4>
+                                <p>Click <strong>"Run 7-Step Analysis"</strong> above to generate all seven analytical stages using RAG.</p>
+                            </div>
+                            <div class="step-text-output" id="stepTextOutput" style="display: none;"></div>
+                        </div>
+
+                        <!-- Retractable Retrieved Context Expander -->
+                        <details class="retrieved-context-expander" id="contextExpander" open>
+                            <summary class="context-expander-summary">
+                                <span class="summary-left">
+                                    <span class="summary-icon">🔍</span>
+                                    <span class="summary-title">RAG Context & Retrieved Sources</span>
+                                </span>
+                                <span class="context-chunk-badge" id="contextCountBadge">0 passages</span>
+                            </summary>
+                            <div class="context-cards-container" id="contextCardsContainer">
+                                <div class="no-context-msg">No external passages retrieved yet for this step.</div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- All-Steps Accordion Container (Accordion View) -->
+                    <div class="accordion-container" id="accordionContainer" style="display: flex;">
+                        <div class="accordion-toolbar">
+                            <span class="accordion-hint">Complete 7-Step Philological Breakdown:</span>
+                            <div class="accordion-btn-group">
+                                <button type="button" class="btn-subtle" id="btnExpandAll" onclick="window.expandAllAccordion && window.expandAllAccordion()">Expand All</button>
+                                <button type="button" class="btn-subtle" id="btnCollapseAll" onclick="window.collapseAllAccordion && window.collapseAllAccordion()">Collapse All</button>
+                            </div>
+                        </div>
+                        <div class="accordion-list" id="accordionList">
+                            <!-- Dynamically populated 7 accordion items -->
+                        </div>
+                    </div>
+                </section>
+            </details>
 
             <!-- Grounded RAG Chatbot Section -->
             <section class="chatbot-section" id="chatbotSection">
@@ -258,6 +291,6 @@
     </div>
 
     <!-- Application Script with cache buster -->
-    <script src="/static/app.js?v=2.7.0"></script>
+    <script src="/static/app.js?v=2.9.0"></script>
 </body>
 </html>

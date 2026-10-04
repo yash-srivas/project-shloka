@@ -14,7 +14,7 @@ Incorporates step-specific RAG retrieval, context chaining, caching, and latency
 import time
 from typing import Dict, Any, Optional, Callable
 from src.config import DEBUG_MODE
-from src.schemas import ShlokaData, StepOutput, PipelineResult, RetrievalResult
+from src.schemas import ShlokaData, StepOutput, PipelineResult, RetrievalResult, FinalSynthesisOutput
 from src.prompts import PromptManager, STEPS_CONFIG
 from src.retriever import ShlokaRetriever
 from src.llm import LLMClient
@@ -75,23 +75,26 @@ class ShlokaPipelineOrchestrator:
             safe_log(f"[Pipeline] Starting 7-Step Analysis for: {shloka_id} (Shloka {shloka.shloka_number_display})")
             safe_log("#"*60)
 
-        # 1. Check cache for all steps
+        # 1. Check cache for all steps and final synthesis
         cached_steps: Dict[int, StepOutput] = {}
+        cached_synthesis: Optional[FinalSynthesisOutput] = None
         if not force_refresh:
             cached_steps = self.cache.get_all_steps(shloka_id=shloka_id, model=self.llm_client.model)
-            if len(cached_steps) == 7:
+            cached_synthesis = self.cache.get_final_synthesis(shloka_id=shloka_id, model=self.llm_client.model)
+            if len(cached_steps) == 7 and cached_synthesis is not None:
                 safe_log(
                     f"[DEBUG LOG] shloka_id={shloka_id} | provider={self.llm_client.provider} | "
                     f"model={self.llm_client.model} | is_mock={self.llm_client.is_mock} | "
                     f"cache_used=True | backend_called=cache"
                 )
                 if DEBUG_MODE:
-                    print(f"[Pipeline] Cache hit! Loaded all 7 steps for {shloka_id} from local cache.")
+                    print(f"[Pipeline] Cache hit! Loaded all 7 steps and final synthesis for {shloka_id} from local cache.")
                 return PipelineResult(
                     shloka_id=shloka_id,
                     shloka_number=shloka_num,
                     shloka_text=shloka_text,
                     steps=cached_steps,
+                    final_synthesis=cached_synthesis,
                     execution_time_seconds=round(time.time() - start_time, 2),
                     cached=True
                 )
@@ -190,15 +193,91 @@ class ShlokaPipelineOrchestrator:
                 retrieved_contexts=retrieved_chunks
             )
 
+        # 3. Final Synthesis Stage (Executed after Step 7)
+        synthesis_result: Optional[FinalSynthesisOutput] = None
+        if not force_refresh and cached_synthesis is not None:
+            synthesis_result = cached_synthesis
+        else:
+            if progress_callback:
+                progress_callback(8, "अन्तिम-संश्लेषणम्", "Generating final synthesized explanation...")
+
+            if DEBUG_MODE:
+                safe_log("\n---> Executing Final Synthesis Stage (अन्तिम-संश्लेषणम्)")
+
+            synthesis_start = time.time()
+            try:
+                # Gather unique retrieved contexts from all executed/cached steps for grounding
+                combined_contexts = []
+                seen_chunk_ids = set()
+                for s_num in range(1, 8):
+                    step_obj = steps_result.get(s_num)
+                    if step_obj and step_obj.retrieved_contexts:
+                        for chunk in step_obj.retrieved_contexts:
+                            if chunk.chunk_id not in seen_chunk_ids:
+                                seen_chunk_ids.add(chunk.chunk_id)
+                                combined_contexts.append(chunk)
+
+                # Format retrieved context string
+                synth_context_pieces = []
+                for idx, r in enumerate(combined_contexts[:8], 1):
+                    dist_str = f" [score: {r.similarity_score}]" if r.similarity_score is not None else ""
+                    synth_context_pieces.append(
+                        f"[{idx}] Source: {r.source} (Shloka {r.shloka_number or 'N/A'}{dist_str} - {r.content_type}):\n{r.text}"
+                    )
+                synth_context_str = "\n\n".join(synth_context_pieces) if synth_context_pieces else "Context not available in local knowledge store."
+
+                # Render synthesis prompt
+                rendered_synth_prompt = self.prompt_manager.render_synthesis_prompt(
+                    shloka_text=shloka_text,
+                    retrieved_context=synth_context_str,
+                    step_outputs=previous_text_outputs
+                )
+
+                sys_instruction = (
+                    "You are an expert Sanskrit & Ayurveda analytical assistant generating the Final Synthesis for Project Shloka. "
+                    "Combine the intermediate analytical evidence from the 7 steps into a coherent, authoritative, and strictly grounded final explanation. "
+                    "Adhere strictly to the supplied context and original shloka. "
+                    "If any required information is absent, explicitly state: 'यह जानकारी उपलब्ध संदर्भ में स्पष्ट रूप से नहीं दी गई है।'"
+                )
+
+                synthesis_text = self.llm_client.generate(prompt=rendered_synth_prompt, system_prompt=sys_instruction)
+                synth_duration = round(time.time() - synthesis_start, 2)
+
+                synthesis_result = FinalSynthesisOutput(
+                    content=synthesis_text,
+                    model=self.llm_client.model,
+                    status="fresh",
+                    latency_seconds=synth_duration,
+                    retrieved_contexts=combined_contexts[:6]
+                )
+
+                # Cache final synthesis
+                self.cache.set_final_synthesis(
+                    shloka_id=shloka_id,
+                    output=synthesis_text,
+                    model=self.llm_client.model,
+                    retrieved_contexts=combined_contexts[:6]
+                )
+
+            except Exception as e:
+                safe_log(f"[Pipeline Warning] Final synthesis generation failed: {e}")
+                synthesis_result = FinalSynthesisOutput(
+                    content="Final synthesis could not be generated. The detailed seven-step analysis is still available.",
+                    model=self.llm_client.model,
+                    status="fallback",
+                    latency_seconds=0.0
+                )
+
         total_time = round(time.time() - start_time, 2)
         if DEBUG_MODE:
-            safe_log(f"\n[Pipeline] Completed 7 steps in {total_time} seconds. Latencies: {step_latencies}")
+            safe_log(f"\n[Pipeline] Completed 7 steps and final synthesis in {total_time} seconds. Latencies: {step_latencies}")
 
         return PipelineResult(
             shloka_id=shloka_id,
             shloka_number=shloka_num,
             shloka_text=shloka_text,
             steps=steps_result,
+            final_synthesis=synthesis_result,
             execution_time_seconds=total_time,
             step_latencies=step_latencies,
             cached=False

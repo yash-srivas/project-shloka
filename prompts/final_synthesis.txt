@@ -1,0 +1,72 @@
+You are generating the final user-facing explanation for Project Shloka (Computational Philology and Ayurvedic Text Analysis of Sushruta Samhita, Nidana Sthana, Chapter 1: Vatavyadhi Nidana).
+
+The seven supplied outputs below represent intermediate analytical evidence. Your task is to synthesize them into one clear, authoritative, coherent, and student-accessible final explanation.
+
+STRICT GROUNDING & PHILOLOGICAL RULES:
+1. Treat the ORIGINAL SHLOKA as your primary source of truth, and the RETRIEVED CONTEXT and the SEVEN STEP OUTPUTS as authoritative supporting evidence.
+2. Do NOT invent or extrapolate unsupported Sanskrit roots, grammatical attributes, Ayurvedic claims, or historical assertions.
+3. For Sanskrit roots and morphology, adhere strictly to the grounded evidence established in Step 2 and Step 6.
+4. If any required information, background, or cross-treatise reference is absent from the provided context and evidence, do NOT invent it. State clearly:
+   "यह जानकारी उपलब्ध संदर्भ में स्पष्ट रूप से नहीं दी गई है।"
+5. Do NOT simply concatenate the seven outputs. Synthesize them into an integrated, flowing educational explanation. Preserve classical Sanskrit technical terms (e.g., samāsa, dhātu, vāyu types, karma) alongside clear Hindi/English explanations.
+6. Do not force sections if the available context does not support them.
+
+OUTPUT STRUCTURE:
+Please organize your output using the following structure:
+
+### FINAL EXPLANATION
+
+#### 1. Original Shloka (मूल श्लोक)
+[Devanagari text of the shloka]
+
+#### 2. Word-by-Word Meaning (पदविभाग एवं अन्वयार्थ)
+[Clear word-by-word gloss following the analytical steps]
+
+#### 3. Anvaya (व्याकरणात्मक अन्वय)
+[Natural grammatical prose order: kartā -> karma -> kriyā]
+
+#### 4. Literal / Sentence Meaning (अन्वयार्थ / सरलार्थ)
+[Continuous sentence translation strictly faithful to the anvaya]
+
+#### 5. Overall Meaning & Clinical Purport (भावार्थ)
+[Comprehensive explanation of the verse's meaning and central teaching]
+
+#### 6. Ayurvedic Context & Significance (आयुर्वेदीय संदर्भ एवं महत्व)
+[Clinical and doctrinal significance supported strictly by the retrieved commentary and classical treatise]
+
+#### 7. Deeper Meaning & Tantrayukti (ध्वनितार्थ एवं तन्त्रयुक्ति)
+[Hermeneutic synthesis and implied deeper intent revealed through Tantrayukti]
+
+#### 8. Concise Final Summary (संक्षिप्त निष्कर्ष)
+[A clear 2-3 sentence concluding takeaway for students and practitioners]
+
+---
+INPUT DATA:
+
+ORIGINAL SHLOKA:
+{shloka_text}
+
+RETRIEVED CONTEXT:
+{retrieved_context}
+
+INTERMEDIATE ANALYTICAL EVIDENCE (7 STEPS):
+Step 1 (Sampradaanam / Metrical Division):
+{step1_output}
+
+Step 2 (Padavibhaga / Word Splitting & Tagging):
+{step2_output}
+
+Step 3 (Anvaya / Syntactic Reordering):
+{step3_output}
+
+Step 4 (Anvayartha / Word-by-Word Meaning):
+{step4_output}
+
+Step 5 (Bhavartha / Contextual Purport):
+{step5_output}
+
+Step 6 (Padakrutyam / Morphological Deep Dive):
+{step6_output}
+
+Step 7 (Dhvanitartha / Implied Deeper Intent):
+{step7_output}

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from src.config import CACHE_DB_PATH
-from src.schemas import StepOutput, RetrievalResult
+from src.schemas import StepOutput, RetrievalResult, FinalSynthesisOutput
 
 class ShlokaCache:
     """SQLite-backed cache for shloka step analysis results."""
@@ -117,6 +117,54 @@ class ShlokaCache:
             if cached:
                 results[step_num] = cached
         return results
+
+    def get_final_synthesis(self, shloka_id: str, model: str = "default") -> Optional[FinalSynthesisOutput]:
+        """Fetch cached final synthesis (step_number=8) for a shloka."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT output, model, retrieval_metadata
+                FROM shloka_steps_cache
+                WHERE shloka_id = ? AND step_number = 8 AND (model = ? OR model = 'default')
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """, (shloka_id, model))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            retrieved = []
+            if row["retrieval_metadata"]:
+                try:
+                    contexts_data = json.loads(row["retrieval_metadata"])
+                    retrieved = [RetrievalResult(**c) for c in contexts_data]
+                except Exception:
+                    retrieved = []
+
+            return FinalSynthesisOutput(
+                content=row["output"],
+                model=row["model"],
+                status="cached",
+                retrieved_contexts=retrieved
+            )
+
+    def set_final_synthesis(
+        self,
+        shloka_id: str,
+        output: str,
+        model: str = "default",
+        retrieved_contexts: List[RetrievalResult] = None
+    ):
+        """Save or update final synthesis in cache (stored as step_number=8)."""
+        self.set_step_output(
+            shloka_id=shloka_id,
+            step_number=8,
+            step_name_sa="अन्तिम-संश्लेषणम्",
+            step_name_en="Final Synthesis",
+            output=output,
+            model=model,
+            retrieved_contexts=retrieved_contexts
+        )
 
     def clear_cache(self, shloka_id: Optional[str] = None):
         """Clear cache for a specific shloka or everything."""

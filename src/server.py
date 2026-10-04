@@ -157,6 +157,7 @@ def get_shloka_detail(shloka_id: str):
     orchestrator = get_orchestrator_instance()
     provider, model, _ = get_active_llm_config()
     cached_steps = orchestrator.cache.get_all_steps(shloka_id=target.id, model=model)
+    cached_synthesis = orchestrator.cache.get_final_synthesis(shloka_id=target.id, model=model)
 
     steps_payload = {}
     if cached_steps:
@@ -178,14 +179,15 @@ def get_shloka_detail(shloka_id: str):
     return {
         "shloka": target.model_dump(),
         "steps_config": formatted_config,
-        "is_cached": len(cached_steps) == 7,
+        "is_cached": len(cached_steps) == 7 and cached_synthesis is not None,
         "cached_steps_count": len(cached_steps),
-        "steps": steps_payload
+        "steps": steps_payload,
+        "final_synthesis": cached_synthesis.model_dump() if cached_synthesis else None
     }
 
 @app.post("/api/shlokas/{shloka_id}/analyze")
 def run_shloka_analysis(shloka_id: str, force_refresh: bool = Query(default=False)):
-    """Execute the full 7-step analysis pipeline on the given shloka."""
+    """Execute the full 7-step analysis pipeline and final synthesis on the given shloka."""
     target = find_shloka(shloka_id)
     if not target:
         raise HTTPException(status_code=404, detail=f"Shloka with ID '{shloka_id}' not found.")
@@ -207,7 +209,8 @@ def run_shloka_analysis(shloka_id: str, force_refresh: bool = Query(default=Fals
         "shloka_text": result.shloka_text,
         "execution_time_seconds": result.execution_time_seconds,
         "cached": result.cached,
-        "steps": {str(k): v.model_dump() for k, v in result.steps.items()}
+        "steps": {str(k): v.model_dump() for k, v in result.steps.items()},
+        "final_synthesis": result.final_synthesis.model_dump() if result.final_synthesis else None
     }
 
 @app.delete("/api/shlokas/{shloka_id}/cache")
@@ -235,13 +238,15 @@ def export_shloka_analysis(
     orchestrator = get_orchestrator_instance()
     provider, model, _ = get_active_llm_config()
     cached_steps = orchestrator.cache.get_all_steps(shloka_id=target.id, model=model)
+    cached_synthesis = orchestrator.cache.get_final_synthesis(shloka_id=target.id, model=model)
 
     if format == "json":
         data = {
             "shloka": target.model_dump(),
             "model": model,
             "provider": provider,
-            "steps": {str(k): v.model_dump() for k, v in cached_steps.items()}
+            "steps": {str(k): v.model_dump() for k, v in cached_steps.items()},
+            "final_synthesis": cached_synthesis.model_dump() if cached_synthesis else None
         }
         return JSONResponse(
             content=data,
@@ -261,6 +266,14 @@ def export_shloka_analysis(
         lines.extend([
             "### Transliteration (IAST)",
             f"> *{target.transliteration}*",
+            ""
+        ])
+
+    if cached_synthesis and cached_synthesis.content:
+        lines.extend([
+            "---",
+            "## Final Explanation (अन्तिम-संश्लेषणम्)",
+            cached_synthesis.content,
             ""
         ])
 

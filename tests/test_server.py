@@ -77,6 +77,16 @@ def test_run_analysis_and_cache_cycle(client):
     data = resp.json()
     assert len(data["steps"]) == 7
     assert "1" in data["steps"]
+    assert "final_synthesis" in data
+    assert data["final_synthesis"] is not None
+    assert len(data["final_synthesis"]["content"]) > 0
+
+    # Verify detail endpoint also returns final_synthesis
+    detail_resp = client.get("/api/shlokas/1")
+    assert detail_resp.status_code == 200
+    detail_data = detail_resp.json()
+    assert "final_synthesis" in detail_data
+    assert detail_data["final_synthesis"] is not None
 
     # Clear cache
     del_resp = client.delete("/api/shlokas/1/cache")
@@ -84,11 +94,15 @@ def test_run_analysis_and_cache_cycle(client):
     assert "Cache cleared" in del_resp.json()["message"]
 
 def test_export_endpoints(client):
+    # First ensure shloka 1 has analysis in cache
+    client.post("/api/shlokas/1/analyze?force_refresh=false")
+
     # Test Markdown export
     md_resp = client.get("/api/shlokas/1/export?format=markdown")
     assert md_resp.status_code == 200
     assert "text/markdown" in md_resp.headers.get("content-type", "")
     assert "Suśruta Saṃhitā" in md_resp.text
+    assert "Final Explanation" in md_resp.text
 
     # Test JSON export
     json_resp = client.get("/api/shlokas/1/export?format=json")
@@ -97,4 +111,6 @@ def test_export_endpoints(client):
     assert "shloka" in data
     assert data["shloka"]["shloka_number"] == 1
     assert "steps" in data
+    assert "final_synthesis" in data
+    assert data["final_synthesis"] is not None
 
